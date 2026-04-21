@@ -1,0 +1,382 @@
+# autopilot.yaml — Game Creation Agent System
+# This is the autopilot config for the Blender/Unity MCP server project.
+# Generated from the original Phase 0 planning docs.
+
+project:
+  name: "Game Creation Agent System"
+  description: "Multi-agent MCP servers for Blender (3D assets) and Unity (game assembly) that enable Claude to build playable video games."
+
+phases:
+  - name: "Foundation"
+    description: "Blender MCP + Unity MCP servers with TCP/WebSocket bridges and core tools. Goal: cube in Blender → export → Unity scene with rotation script."
+    steps:
+      - id: "1.1"
+        name: "Blender Addon (TCP Bridge)"
+        model: opus
+        substeps:
+          - "TCP socket server (listener thread + length-prefixed JSON)"
+          - "Main-thread command queue (bpy.app.timers)"
+          - "bl_info + register/unregister + N-panel UI"
+          - "Handler: get_scene_info"
+          - "Handler: create_primitive"
+          - "Handler: apply_modifier"
+          - "Handler: create_material"
+          - "Handler: export_fbx"
+          - "Handler: validate_mesh"
+          - "Handler: select_objects"
+          - "Handler: delete_objects"
+          - "Handler: execute_python"
+          - "Manual test: install in Blender, verify connection"
+      - id: "1.2"
+        name: "Blender MCP Server (FastMCP)"
+        model: sonnet
+        substeps:
+          - "FastMCP server skeleton with stdio transport"
+          - "TCP client to connect to Blender addon"
+          - "Tool: get_scene_info"
+          - "Tool: create_primitive"
+          - "Tool: apply_modifier"
+          - "Tool: create_material"
+          - "Tool: export_fbx"
+          - "Tool: validate_mesh"
+          - "Tool: select_objects"
+          - "Tool: delete_objects"
+          - "Tool: execute_python"
+          - "pyproject.toml"
+          - "Test: server starts and connects to Blender"
+      - id: "1.3"
+        name: "Unity Editor Plugin (WebSocket Bridge)"
+        model: opus
+        substeps:
+          - "MCPBridge.cs — WebSocket server, command queue, main-thread dispatch"
+          - "CommandRouter.cs — handler discovery + routing"
+          - "ICommandHandler.cs — interface"
+          - "SceneHandler.cs — get_hierarchy, create_scene, open_scene, save_scene"
+          - "GameObjectHandler.cs — create, find, set_transform, set_parent, destroy, duplicate"
+          - "ScriptHandler.cs — create, compile_and_report, attach"
+          - "AssetHandler.cs — import, set_import_settings, get_asset_list, create_material"
+          - "Include websocket-sharp.dll"
+          - "Test: plugin loads in Unity, WebSocket server starts"
+      - id: "1.4"
+        name: "Unity MCP Server (Node.js/TypeScript)"
+        model: opus
+        substeps:
+          - "package.json + tsconfig.json"
+          - "bridge.ts — WebSocket client with reconnection + request correlation"
+          - "types.ts — Vector3, Color, Transform interfaces"
+          - "index.ts — MCP server skeleton with stdio transport"
+          - "Scene tools: get_scene_hierarchy, create_scene, save_scene"
+          - "GameObject tools: create_gameobject, find_gameobjects, set_transform, destroy_gameobject"
+          - "Script tools: create_script, compile_and_report, attach_script"
+          - "Asset tools: import_asset, set_import_settings, create_material"
+          - "Build: tsc compiles cleanly"
+          - "Test: server starts and connects to Unity"
+      - id: "1.5"
+        name: "End-to-End Integration Test"
+        model: opus
+        substeps:
+          - "Create cube in Blender via MCP"
+          - "Export FBX with Unity-compatible settings"
+          - "Import FBX into Unity via MCP"
+          - "Place in scene"
+          - "Create rotation script via MCP"
+          - "Verify compilation succeeds"
+          - "Attach script to cube"
+      - id: "1.6"
+        name: "MCP Config Files"
+        model: sonnet
+        substeps:
+          - ".mcp.json in project root"
+          - "Verify Claude Code discovers both servers"
+    gate:
+      required_files:
+        - "mcp-servers/blender-mcp/blender_addon.py"
+        - "mcp-servers/blender-mcp/server.py"
+        - "mcp-servers/blender-mcp/pyproject.toml"
+        - "mcp-servers/unity-mcp/src/index.ts"
+        - "mcp-servers/unity-mcp/src/bridge.ts"
+        - "mcp-servers/unity-mcp/package.json"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/MCPBridge.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/CommandRouter.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/ICommandHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/SceneHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/GameObjectHandler.cs"
+        - ".mcp.json"
+      checks: []
+
+  - name: "Asset Pipeline"
+    description: "Full Blender → Unity asset flow. Goal: rigged textured character as a working Unity prefab."
+    steps:
+      - id: "2.1"
+        name: "Blender Mesh Tools"
+        model: sonnet
+        substeps:
+          - "boolean_operation"
+          - "create_mesh_from_vertices"
+          - "duplicate_and_vary"
+      - id: "2.2"
+        name: "Blender UV Tools"
+        model: sonnet
+        substeps:
+          - "set_uv_mapping (smart project, cube, cylinder, sphere, unwrap)"
+      - id: "2.3"
+        name: "Blender Material Tools"
+        model: sonnet
+        substeps:
+          - "generate_procedural_texture"
+          - "bake_textures"
+          - "assign_material"
+      - id: "2.4"
+        name: "Blender Rigging Tools"
+        model: opus
+        substeps:
+          - "auto_rig (basic humanoid armature)"
+          - "create_armature (manual)"
+      - id: "2.5"
+        name: "Blender Animation Tools"
+        model: opus
+        substeps:
+          - "create_animation (keyframes)"
+          - "create_shape_keys"
+          - "export_animation_clips"
+      - id: "2.6"
+        name: "Blender Export Tools"
+        model: sonnet
+        substeps:
+          - "export_gltf"
+          - "batch_export"
+          - "validate_for_unity (budget checks)"
+      - id: "2.7"
+        name: "Blender Scene Tools"
+        model: sonnet
+        substeps:
+          - "setup_preview_scene"
+          - "render_preview"
+      - id: "2.8"
+        name: "Unity Prefab Handler"
+        model: sonnet
+        substeps:
+          - "create_prefab"
+          - "instantiate_prefab"
+          - "modify_prefab"
+          - "create_variant"
+      - id: "2.9"
+        name: "Unity Animation Handler"
+        model: opus
+        substeps:
+          - "create_animator_controller"
+          - "add_animation_state"
+          - "add_transition"
+          - "set_parameters"
+      - id: "2.10"
+        name: "Unity Component Handler"
+        model: opus
+        substeps:
+          - "add_component"
+          - "remove_component"
+          - "set_component_properties"
+          - "get_component_properties"
+      - id: "2.11"
+        name: "Unity Import Settings Expansion"
+        model: sonnet
+        substeps:
+          - "Full ModelImporter config"
+          - "TextureImporter config"
+      - id: "2.12"
+        name: "Asset Pipeline Integration Test"
+        model: opus
+        substeps:
+          - "Rigged character: model → rig → animate → export → import → prefab"
+          - "Materials: procedural → bake → export → URP material in Unity"
+          - "Batch: 3–5 props end-to-end"
+    gate:
+      required_files:
+        - "mcp-servers/blender-mcp/tools/mesh_tools.py"
+        - "mcp-servers/blender-mcp/tools/uv_tools.py"
+        - "mcp-servers/blender-mcp/tools/material_tools.py"
+        - "mcp-servers/blender-mcp/tools/rig_tools.py"
+        - "mcp-servers/blender-mcp/tools/animation_tools.py"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/PrefabHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/AnimationHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/ComponentHandler.cs"
+      checks: []
+
+  - name: "Game Systems"
+    description: "Full Unity game creation toolkit. Goal: simple playable 3D game."
+    steps:
+      - id: "3.1"
+        name: "Unity Physics Handler"
+        model: opus
+        substeps:
+          - "add_collider (box, sphere, capsule, mesh)"
+          - "add_rigidbody"
+          - "create_physics_material"
+          - "setup_layer_collision_matrix"
+          - "add_character_controller"
+      - id: "3.2"
+        name: "Unity UI Handler"
+        model: sonnet
+        substeps:
+          - "create_canvas"
+          - "create_ui_element (button, text, image, slider, panel)"
+          - "set_ui_properties (anchors, text, colors, font)"
+          - "setup_ui_navigation"
+      - id: "3.3"
+        name: "Unity Lighting Handler"
+        model: sonnet
+        substeps:
+          - "create_light (directional, point, spot)"
+          - "set_skybox"
+          - "configure_ambient_light"
+          - "configure_fog"
+          - "configure_post_processing (Volume + effects)"
+      - id: "3.4"
+        name: "Unity Build Handler"
+        model: sonnet
+        substeps:
+          - "enter_play_mode"
+          - "exit_play_mode"
+          - "get_console_logs"
+          - "run_tests"
+          - "build_project"
+      - id: "3.5"
+        name: "Unity Execution Tools"
+        model: sonnet
+        substeps:
+          - "execute_editor_code (arbitrary C#)"
+          - "execute_menu_item"
+      - id: "3.6"
+        name: "Game Script Templates"
+        model: opus
+        substeps:
+          - "Player controller (CharacterController-based)"
+          - "Enemy AI (state machine + NavMeshAgent)"
+          - "Game manager (singleton, game states)"
+          - "Event system (ScriptableObject events)"
+          - "UI controller (health bar, menus)"
+          - "Save/load system"
+      - id: "3.7"
+        name: "Game Systems Integration Test"
+        model: opus
+        substeps:
+          - "Simple 3D game: player movement, enemy, health, UI, win/lose"
+          - "Build to executable"
+    gate:
+      required_files:
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/PhysicsHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/UIHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/LightingHandler.cs"
+        - "mcp-servers/unity-mcp/unity-plugin/Editor/Handlers/BuildHandler.cs"
+      checks: []
+
+  - name: "Polish & Automation"
+    description: "Production quality. Goal: vertical slice of a roguelite creature battler."
+    steps:
+      - id: "4.1"
+        name: "Advanced Blender Tools"
+        model: sonnet
+        substeps:
+          - "LOD generation"
+          - "Animation retargeting"
+          - "Variant generation"
+          - "Preview render pipeline"
+      - id: "4.2"
+        name: "Build & CI Pipeline"
+        model: sonnet
+        substeps:
+          - "CLI batch mode tools"
+          - "Quality settings per platform"
+          - "Build post-processing"
+      - id: "4.3"
+        name: "Orchestration System"
+        model: opus
+        substeps:
+          - "Project manifest auto-updates"
+          - "Error recovery loops (compile fix cycle)"
+          - "Asset dependency tracking"
+      - id: "4.4"
+        name: "Full Game Build Test"
+        model: opus
+        substeps:
+          - "GDD for roguelite creature battler vertical slice"
+          - "Asset creation via Blender MCP"
+          - "Scene assembly via Unity MCP"
+          - "Game systems via Unity MCP"
+          - "Playable build"
+    gate:
+      required_files: []
+      checks: []
+
+session:
+  max_turns: 75
+  permission_mode: "auto"
+  inter_session_pause: 10
+  window_duration: 19200
+  stall_threshold: 5
+
+models:
+  default: "sonnet"
+
+slack:
+  enabled: true
+  app_name: "Game Agent"
+  notify_session_start: true
+  notify_session_end: true
+  notify_window_summary: true
+  notify_phase_complete: true
+  notify_stall: true
+  notify_error: true
+
+email:
+  enabled: false
+
+review:
+  enabled: true
+  reviewer: "Codex"
+
+knowledge:
+  references:
+    - path: "docs/api-reference/blender-bpy-reference.md"
+      description: "Blender Python API reference for game asset pipeline"
+      relevant_steps: ["1.1", "1.2", "2.*"]
+    - path: "docs/api-reference/unity-editor-api-reference.md"
+      description: "Unity Editor API reference for MCP tool operations"
+      relevant_steps: ["1.3", "1.4", "2.8", "2.9", "2.10", "3.*"]
+    - path: "docs/api-reference/mcp-sdk-patterns.md"
+      description: "FastMCP and TypeScript MCP SDK patterns"
+      relevant_steps: ["1.2", "1.4"]
+  templates:
+    - path: "docs/patterns/blender-tool-template.py"
+      description: "Template for new Blender MCP tools"
+    - path: "docs/patterns/unity-handler-template.cs"
+      description: "Template for new Unity command handlers"
+    - path: "docs/patterns/ICommandHandler.cs"
+      description: "Interface for Unity command handlers"
+  cookbook: "docs/cookbook.md"
+  decisions: "docs/decisions.md"
+
+protected_files:
+  - "autopilot.yaml"
+  - "CLAUDE.md"
+  - "PROGRESS.md"
+  - "FEEDBACK.md"
+  - "docs/cookbook.md"
+  - "docs/decisions.md"
+
+ignore:
+  - "unity-project/Library/"
+  - "unity-project/Temp/"
+  - "unity-project/Logs/"
+  - "unity-project/obj/"
+  - "unity-project/Build/"
+  - "unity-project/*.csproj"
+  - "unity-project/*.sln"
+  - "blender/**/*.blend1"
+  - "blender/**/__pycache__/"
+  - "mcp-servers/unity-mcp/node_modules/"
+  - "mcp-servers/unity-mcp/dist/"
+  - "mcp-servers/blender-mcp/__pycache__/"
+  - "mcp-servers/blender-mcp/.venv/"
+  - "exports/**/*.fbx"
+  - "exports/**/*.png"
+  - ".automation/"

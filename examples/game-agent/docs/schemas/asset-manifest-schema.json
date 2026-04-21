@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Game Project Asset Manifest",
+  "description": "Tracks all assets, scripts, scenes, and their status across sessions",
+  "type": "object",
+  "properties": {
+    "projectName": { "type": "string" },
+    "unityVersion": { "type": "string" },
+    "renderPipeline": { "type": "string", "enum": ["URP", "HDRP", "Built-in"] },
+    "lastUpdated": { "type": "string", "format": "date-time" },
+    "currentPhase": { "type": "integer", "minimum": 1, "maximum": 4 },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["character", "enemy", "prop", "environment", "ui", "vfx"] },
+          "status": { "type": "string", "enum": ["planned", "modeling", "rigging", "animating", "exported", "imported", "prefab_ready", "in_scene"] },
+          "blenderFile": { "type": "string" },
+          "exportedFiles": { "type": "array", "items": { "type": "string" } },
+          "unityPrefab": { "type": "string" },
+          "triangleCount": { "type": "integer" },
+          "materialCount": { "type": "integer" },
+          "boneCount": { "type": "integer" },
+          "animations": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "string" }
+        },
+        "required": ["name", "type", "status"]
+      }
+    },
+    "scripts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "className": { "type": "string" },
+          "path": { "type": "string" },
+          "category": { "type": "string", "enum": ["player", "enemy", "system", "ui", "utility", "manager"] },
+          "status": { "type": "string", "enum": ["planned", "written", "compiles", "tested", "integrated"] },
+          "attachedTo": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "string" }
+        },
+        "required": ["className", "status"]
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "status": { "type": "string", "enum": ["planned", "created", "populated", "lit", "tested", "polished"] },
+          "buildIndex": { "type": "integer" },
+          "notes": { "type": "string" }
+        },
+        "required": ["name", "status"]
+      }
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "shader": { "type": "string" },
+          "textures": { "type": "array", "items": { "type": "string" } },
+          "usedBy": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["name"]
+      }
+    }
+  },
+  "required": ["projectName", "currentPhase"]
+}

@@ -1,0 +1,161 @@
+# autopilot.example.yaml
+# ============================================================================
+# Claude Autopilot — Project Configuration
+# ============================================================================
+# Copy this to `autopilot.yaml` in your project root and customize.
+# Run `python3 autopilot.py init` to scaffold the project from this config.
+# ============================================================================
+
+# ─── Project ────────────────────────────────────────────────────────────────
+
+project:
+  name: "My Project"
+  description: "One-line description of what this project builds."
+  repo: ""  # Optional: git remote URL
+
+# ─── Phases ─────────────────────────────────────────────────────────────────
+# Define your build phases. Each phase has steps, each step has substeps.
+# The automation works through these in order.
+# Phase gates run automatically when the last step of a phase completes.
+
+phases:
+  - name: "Foundation"
+    description: "Core infrastructure and proof of concept"
+    steps:
+      - id: "1.1"
+        name: "Project scaffolding"
+        model: opus    # opus | sonnet — which model to use for this step
+        substeps:
+          - "Initialize project structure"
+          - "Set up dependencies"
+          - "Configure build tools"
+      - id: "1.2"
+        name: "Core module"
+        model: sonnet
+        substeps:
+          - "Create main entry point"
+          - "Implement core logic"
+          - "Add error handling"
+          - "Write unit tests"
+    gate:
+      # Files that must exist when this phase completes
+      required_files:
+        - "src/index.ts"
+        - "package.json"
+      # Commands that must exit 0
+      checks:
+        - "npm run build"
+        - "npm test"
+
+  - name: "Features"
+    description: "Build out the feature set"
+    steps:
+      - id: "2.1"
+        name: "Feature A"
+        model: sonnet
+        substeps:
+          - "Design API"
+          - "Implement handlers"
+          - "Add tests"
+    gate:
+      required_files:
+        - "src/features/a.ts"
+      checks:
+        - "npm test"
+
+# ─── Session Settings ──────────────────────────────────────────────────────
+
+session:
+  max_turns: 75               # Agentic turns per session
+  permission_mode: "auto"     # auto | plan | default
+  inter_session_pause: 10     # Seconds between sessions in a window
+  window_duration: 19200      # Seconds (5h20m) — stop draining near window end
+  stall_threshold: 5          # Same step for N sessions = stuck
+
+# ─── Model Defaults ─────────────────────────────────────────────────────────
+# Which model to use when a step doesn't specify one.
+# Steps can override this individually.
+
+models:
+  default: "sonnet"
+  # You can also set per-step overrides here instead of inline:
+  # overrides:
+  #   "1.1": "opus"
+  #   "2.3": "opus"
+
+# ─── Slack ──────────────────────────────────────────────────────────────────
+# Set credentials via environment variables (not in this file):
+#   SLACK_BOT_TOKEN, SLACK_PROGRESS_CHANNEL, SLACK_ALERTS_CHANNEL, SLACK_FEEDBACK_CHANNEL
+
+slack:
+  enabled: true
+  app_name: "Claude Autopilot"
+  # Notification preferences
+  notify_session_start: true
+  notify_session_end: true
+  notify_window_summary: true
+  notify_phase_complete: true
+  notify_stall: true
+  notify_error: true
+
+# ─── Email (fallback if Slack not configured) ──────────────────────────────
+# Set credentials via environment variables:
+#   SMTP_USER, SMTP_PASS, EMAIL_TO
+
+email:
+  enabled: false
+  daily_report_time: "08:00"
+
+# ─── Code Review Notice ────────────────────────────────────────────────────
+# Tell Claude its work will be reviewed. Improves output quality.
+
+review:
+  enabled: true
+  reviewer: "Codex"  # or "a senior engineer", "the team lead", etc.
+  message: >
+    Your code will be reviewed by {reviewer} after each phase.
+    It will check correctness, consistency, error handling, and whether
+    substeps marked [x] are actually complete. Do not cut corners.
+
+# ─── Knowledge Base ────────────────────────────────────────────────────────
+# Extra files that Claude should read. These are referenced in the session
+# prompt so Claude knows to look at them.
+
+knowledge:
+  # API references, docs, etc. — Claude reads the relevant ones each session
+  references: []
+    # - path: "docs/api-reference/my-api.md"
+    #   description: "API reference for the main framework"
+    #   relevant_steps: ["1.1", "1.2", "2.*"]  # When to read this
+
+  # Code templates — Claude copies these as starting points
+  templates: []
+    # - path: "docs/patterns/handler-template.ts"
+    #   description: "Template for new request handlers"
+
+  # Cookbook — grows during the project with discovered fixes
+  cookbook: "docs/cookbook.md"
+
+  # Architecture Decision Records
+  decisions: "docs/decisions.md"
+
+# ─── File Safety ────────────────────────────────────────────────────────────
+# Files that should never be modified by automation (backed up each session)
+
+protected_files:
+  - "autopilot.yaml"
+  - "CLAUDE.md"
+  - "PROGRESS.md"
+  - "FEEDBACK.md"
+  - "docs/cookbook.md"
+  - "docs/decisions.md"
+
+# ─── Ignore ─────────────────────────────────────────────────────────────────
+# Patterns to add to .claudeignore (prevents Claude from scanning these)
+
+ignore:
+  - "node_modules/"
+  - ".git/"
+  - "dist/"
+  - "build/"
+  - ".automation/"

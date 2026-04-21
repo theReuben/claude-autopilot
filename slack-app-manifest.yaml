@@ -1,0 +1,70 @@
+# ============================================================================
+# Game Agent System — Slack App Manifest
+# ============================================================================
+#
+# HOW TO USE:
+#   1. Go to https://api.slack.com/apps
+#   2. Click "Create New App"
+#   3. Select "From an app manifest"
+#   4. Pick your workspace
+#   5. Paste this entire file (YAML tab)
+#   6. Click Next → Create
+#   7. Go to "Install App" in the sidebar → "Install to Workspace" → Allow
+#   8. Copy the "Bot User OAuth Token" (starts with xoxb-)
+#   9. Set it: export SLACK_BOT_TOKEN="xoxb-..."
+#
+# AFTER CREATING:
+#   1. Create 3 channels in Slack:
+#      - #game-agent-progress
+#      - #game-agent-alerts
+#      - #game-agent-feedback
+#   2. Invite the bot to all 3: type /invite @Game Agent in each channel
+#   3. Get channel IDs: right-click channel → "View channel details" → ID at bottom
+#   4. Set environment variables:
+#      export SLACK_PROGRESS_CHANNEL="C07XXXXXXXX"
+#      export SLACK_ALERTS_CHANNEL="C07XXXXXXXX"
+#      export SLACK_FEEDBACK_CHANNEL="C07XXXXXXXX"
+#   5. Test: python3 slack.py test
+#
+# ============================================================================
+
+display_information:
+  name: Game Agent
+  description: Automated build system for the Game Creation Agent project. Posts progress reports, alerts, and reads feedback.
+  background_color: "#1e1b4b"
+  long_description: >-
+    This bot is the communication layer for an automated game development
+    pipeline powered by Claude Code. It posts to three channels:
+    #game-agent-progress for session updates and daily reports with ETAs,
+    #game-agent-alerts for stalls, errors, phase completions, and gate
+    results, and #game-agent-feedback where humans post instructions that
+    the automation picks up before each build session. The bot uses the
+    Slack Web API only (no event subscriptions or socket mode) — it polls
+    the feedback channel for new messages and posts formatted Block Kit
+    messages to the other channels.
+
+features:
+  bot_user:
+    display_name: Game Agent
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      # Post messages to channels the bot is in
+      - chat:write
+      # Post messages to channels the bot is NOT in (fallback)
+      - chat:write.public
+      # Read message history from channels (needed for feedback sync)
+      - channels:history
+      # List and get info about channels (needed to verify channel IDs)
+      - channels:read
+      # Read files shared in channels (for feedback attachments)
+      - files:read
+      # Upload files (for screenshots in reports)
+      - files:write
+
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
