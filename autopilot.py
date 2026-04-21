@@ -19,7 +19,6 @@ import os
 import re
 import sys
 import json
-import shutil
 import subprocess
 import textwrap
 from pathlib import Path
@@ -54,6 +53,7 @@ def load_config(project_dir=None):
         print("PyYAML required: pip install pyyaml")
         sys.exit(1)
 
+AUTOPILOT_DIR = Path(__file__).parent
 PROJECT_DIR = find_project_root()
 
 # ─── Init Command ───────────────────────────────────────────────────────────
@@ -125,16 +125,6 @@ def cmd_init():
     manifest = {"projectName": project_name, "currentPhase": 1, "lastUpdated": ""}
     write_if_new(PROJECT_DIR / "docs" / "asset-manifest.json",
                  json.dumps(manifest, indent=2))
-
-    # ── Copy autopilot scripts ──
-    script_dir = Path(__file__).parent
-    for script in ["slack.py", "daily-report.py", "healthcheck.py", "slack-app-manifest.yaml"]:
-        src = script_dir / script
-        if src.exists():
-            dst = PROJECT_DIR / script
-            if not dst.exists():
-                shutil.copy2(src, dst)
-                print(f"  📄 {script}")
 
     print(f"\n✅ Project scaffolded. Next steps:")
     print(f"  1. Edit CLAUDE.md with your project-specific conventions")
@@ -450,12 +440,12 @@ def generate_run_script(config):
             gate_cases += f"""
                 {last_step})
                     log "Phase {i} final step complete — running gate..."
-                    if python3 "$PROJECT_DIR/autopilot.py" gate {i} 2>&1 | tee -a "$LOG_FILE"; then
-                        python3 "$PROJECT_DIR/slack.py" alert gate_passed {i} 2>/dev/null || true
-                        python3 "$PROJECT_DIR/slack.py" alert phase_complete {i} 2>/dev/null || true
+                    if python3 "$AUTOPILOT_DIR/autopilot.py" gate {i} 2>&1 | tee -a "$LOG_FILE"; then
+                        python3 "$AUTOPILOT_DIR/slack.py" alert gate_passed {i} 2>/dev/null || true
+                        python3 "$AUTOPILOT_DIR/slack.py" alert phase_complete {i} 2>/dev/null || true
                         git tag -f "phase-{i}-complete" 2>/dev/null || true
                     else
-                        python3 "$PROJECT_DIR/slack.py" alert gate_failed {i} 2>/dev/null || true
+                        python3 "$AUTOPILOT_DIR/slack.py" alert gate_failed {i} 2>/dev/null || true
                     fi ;;"""
 
     # Review notice for prompt
@@ -468,14 +458,16 @@ def generate_run_script(config):
     decisions = knowledge.get("decisions", "docs/decisions.md")
 
     # Slack notifications
-    slack_session_start = 'python3 "$PROJECT_DIR/slack.py" session-start "$SESSION_COUNT" "$phase" "$step" "$model" "$(( $(seconds_remaining) / 60 ))" 2>/dev/null || true' if slack_cfg.get("notify_session_start", True) else ""
-    slack_session_end = 'python3 "$PROJECT_DIR/slack.py" session-end "$SESSION_COUNT" "$phase" "$step" "$new_step" 2>/dev/null || true' if slack_cfg.get("notify_session_end", True) else ""
-    slack_feedback_sync = 'python3 "$PROJECT_DIR/slack.py" sync-feedback 2>&1 | tee -a "$LOG_FILE" || true' if slack_cfg.get("enabled", False) else ""
+    slack_session_start = 'python3 "$AUTOPILOT_DIR/slack.py" session-start "$SESSION_COUNT" "$phase" "$step" "$model" "$(( $(seconds_remaining) / 60 ))" 2>/dev/null || true' if slack_cfg.get("notify_session_start", True) else ""
+    slack_session_end = 'python3 "$AUTOPILOT_DIR/slack.py" session-end "$SESSION_COUNT" "$phase" "$step" "$new_step" 2>/dev/null || true' if slack_cfg.get("notify_session_end", True) else ""
+    slack_feedback_sync = 'python3 "$AUTOPILOT_DIR/slack.py" sync-feedback 2>&1 | tee -a "$LOG_FILE" || true' if slack_cfg.get("enabled", False) else ""
 
     return textwrap.dedent(f"""\
         #!/bin/bash
         set -euo pipefail
         PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+        AUTOPILOT_DIR="{AUTOPILOT_DIR}"
+        export GAME_AGENT_PROJECT_DIR="$PROJECT_DIR"
         LOG_DIR="$PROJECT_DIR/.automation/logs"
         MAX_TURNS={max_turns}
         PERMISSION_MODE="{permission_mode}"
@@ -562,13 +554,11 @@ def generate_run_script(config):
             {slack_feedback_sync}
             {slack_session_start}
 
-            if [[ -f "$PROJECT_DIR/healthcheck.py" ]]; then
-                python3 "$PROJECT_DIR/healthcheck.py" pre 2>&1 | tee -a "$LOG_FILE"
-                if [[ $? -eq 2 ]]; then
-                    python3 "$PROJECT_DIR/healthcheck.py" fix 2>&1 | tee -a "$LOG_FILE"
-                    python3 "$PROJECT_DIR/healthcheck.py" pre 2>&1 | tee -a "$LOG_FILE"
-                    [[ $? -eq 2 ]] && {{ log "Pre-flight failed."; return 1; }}
-                fi
+            python3 "$AUTOPILOT_DIR/healthcheck.py" pre 2>&1 | tee -a "$LOG_FILE"
+            if [[ $? -eq 2 ]]; then
+                python3 "$AUTOPILOT_DIR/healthcheck.py" fix 2>&1 | tee -a "$LOG_FILE"
+                python3 "$AUTOPILOT_DIR/healthcheck.py" pre 2>&1 | tee -a "$LOG_FILE"
+                [[ $? -eq 2 ]] && {{ log "Pre-flight failed."; return 1; }}
             fi
 
             mkdir -p "$PROJECT_DIR/.automation/backups"
@@ -587,7 +577,7 @@ def generate_run_script(config):
                     [[ "$new_step" != "$step" ]] && log "✓ Advanced: $step → $new_step" || log "→ Still on $step"
                     cd "$PROJECT_DIR"
                     [[ -n $(git status --porcelain 2>/dev/null) ]] && git add -A && git commit -m "Auto #$SESSION_COUNT: Phase $phase Step $step [$(date '+%H:%M')]" 2>/dev/null || true
-                    [[ -f "$PROJECT_DIR/healthcheck.py" ]] && python3 "$PROJECT_DIR/healthcheck.py" post 2>&1 | tee -a "$LOG_FILE" || true
+                    python3 "$AUTOPILOT_DIR/healthcheck.py" post 2>&1 | tee -a "$LOG_FILE" || true
                     {slack_session_end}
                     return 0
                 fi
@@ -610,11 +600,11 @@ def generate_run_script(config):
                 case $result in
                     0) consecutive_errors=0; sleep "$INTER_SESSION_PAUSE" ;;
                     1) consecutive_errors=$((consecutive_errors + 1))
-                       [[ $consecutive_errors -ge 3 ]] && {{ log "3 errors."; python3 "$PROJECT_DIR/slack.py" alert error "3 consecutive errors" 2>/dev/null || true; break; }}
+                       [[ $consecutive_errors -ge 3 ]] && {{ log "3 errors."; python3 "$AUTOPILOT_DIR/slack.py" alert error "3 consecutive errors" 2>/dev/null || true; break; }}
                        sleep 60 ;;
                     2) break ;;
-                    3) python3 "$PROJECT_DIR/slack.py" alert project_complete 2>/dev/null || true; break ;;
-                    4) python3 "$PROJECT_DIR/slack.py" alert stall "$(get_current_step)" 2>/dev/null || true; break ;;
+                    3) python3 "$AUTOPILOT_DIR/slack.py" alert project_complete 2>/dev/null || true; break ;;
+                    4) python3 "$AUTOPILOT_DIR/slack.py" alert stall "$(get_current_step)" 2>/dev/null || true; break ;;
                 esac
                 local current=$(get_current_step)
                 if [[ "$current" != "$LAST_STEP" && -n "$LAST_STEP" ]]; then
@@ -625,7 +615,7 @@ def generate_run_script(config):
                 fi
             done
             log "Sessions: $SESSION_COUNT | Final: Phase $(get_current_phase) Step $(get_current_step) | Duration: $(( ($(date +%s) - WINDOW_START) / 60 ))m"
-            python3 "$PROJECT_DIR/slack.py" window-summary "$SESSION_COUNT" "$(get_current_step)" "$(( ($(date +%s) - WINDOW_START) / 60 ))" "$(get_current_phase)" 2>/dev/null || true
+            python3 "$AUTOPILOT_DIR/slack.py" window-summary "$SESSION_COUNT" "$(get_current_step)" "$(( ($(date +%s) - WINDOW_START) / 60 ))" "$(get_current_phase)" 2>/dev/null || true
         }}
 
         case "${{1:-}}" in
@@ -759,7 +749,7 @@ Step 5: Set Environment Variables
     print('  export SLACK_FEEDBACK_CHANNEL="C07XXXXXXXX"')
     print("""
 Step 6: Test
-  → Run: python3 slack.py test
+  → Run: autopilot test-slack
   → Check #game-agent-progress for the test message
 """)
 
@@ -782,21 +772,20 @@ def main():
     elif cmd == "status":
         cmd_status()
     elif cmd == "report":
-        # Delegate to daily-report.py
         os.environ["GAME_AGENT_PROJECT_DIR"] = str(PROJECT_DIR)
-        os.execvp("python3", ["python3", str(PROJECT_DIR / "daily-report.py")])
+        os.execvp("python3", ["python3", str(AUTOPILOT_DIR / "daily-report.py")])
     elif cmd == "gate":
         phase = sys.argv[2] if len(sys.argv) > 2 else "1"
         cmd_gate(phase)
     elif cmd == "health":
         mode = sys.argv[2] if len(sys.argv) > 2 else "full"
         os.environ["GAME_AGENT_PROJECT_DIR"] = str(PROJECT_DIR)
-        os.execvp("python3", ["python3", str(PROJECT_DIR / "healthcheck.py"), mode])
+        os.execvp("python3", ["python3", str(AUTOPILOT_DIR / "healthcheck.py"), mode])
     elif cmd == "setup-slack":
         cmd_setup_slack()
     elif cmd == "test-slack":
         os.environ["GAME_AGENT_PROJECT_DIR"] = str(PROJECT_DIR)
-        os.execvp("python3", ["python3", str(PROJECT_DIR / "slack.py"), "test"])
+        os.execvp("python3", ["python3", str(AUTOPILOT_DIR / "slack.py"), "test"])
     else:
         print(f"Unknown command: {cmd}")
         print(__doc__)
