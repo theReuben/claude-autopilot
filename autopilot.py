@@ -773,7 +773,7 @@ def main():
         cmd_status()
     elif cmd == "report":
         os.environ["GAME_AGENT_PROJECT_DIR"] = str(PROJECT_DIR)
-        os.execvp("python3", ["python3", str(AUTOPILOT_DIR / "daily-report.py")])
+        os.execvp("python3", ["python3", str(AUTOPILOT_DIR / "daily_report.py")])
     elif cmd == "gate":
         phase = sys.argv[2] if len(sys.argv) > 2 else "1"
         cmd_gate(phase)
