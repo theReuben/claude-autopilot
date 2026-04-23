@@ -30,7 +30,8 @@ You define a plan          Autopilot runs Claude Code     You get updates
 
 ```bash
 git clone https://github.com/your-org/claude-autopilot.git
-pip install -e ./claude-autopilot
+cd claude-autopilot
+pip install -e .
 ```
 
 This installs the `autopilot` command globally. The tool lives in its own directory — no files are copied into your projects.

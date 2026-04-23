@@ -61,6 +61,14 @@ PROJECT_DIR = find_project_root()
 
 def cmd_init():
     """Scaffold a project from autopilot.yaml."""
+    config_path = PROJECT_DIR / "autopilot.yaml"
+    if not config_path.exists():
+        example = AUTOPILOT_DIR / "autopilot.example.yaml"
+        config_path.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+        print(f"Created autopilot.yaml from template.")
+        print(f"Edit it to define your project, then run 'autopilot init' again.")
+        return
+
     config = load_config(PROJECT_DIR)
     project_name = config.get("project", {}).get("name", "My Project")
     phases = config.get("phases", [])
