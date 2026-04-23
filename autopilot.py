@@ -4,6 +4,7 @@ Claude Autopilot — Hands-free automation for Claude Code projects.
 
 Usage:
   autopilot init                     Scaffold a new project from autopilot.yaml
+  autopilot docs                     Create skeleton knowledge-base files (references & templates)
   autopilot run                      Drain the token window (default behavior)
   autopilot run --once               Run a single session
   autopilot run --dry-run            Preview what would happen
@@ -132,6 +133,112 @@ def cmd_init():
     print(f"  3. Add API references to docs/api-reference/")
     print(f"  4. Set up Slack: autopilot setup-slack")
     print(f"  5. Start building: autopilot run")
+
+
+# ─── Docs Command ───────────────────────────────────────────────────────────
+
+def cmd_docs():
+    """Create skeleton knowledge-base files declared in autopilot.yaml."""
+    config = load_config(PROJECT_DIR)
+    knowledge = config.get("knowledge", {})
+    refs = knowledge.get("references", [])
+    tmpls = knowledge.get("templates", [])
+
+    if not refs and not tmpls:
+        print("No references or templates configured in autopilot.yaml.")
+        print("Add entries under knowledge.references and knowledge.templates to use this command.")
+        return
+
+    created = skipped = 0
+
+    if refs:
+        print(f"References ({len(refs)}):")
+        for ref in refs:
+            path = PROJECT_DIR / ref["path"]
+            if path.exists():
+                print(f"  ⏭  {ref['path']} (already exists)")
+                skipped += 1
+            else:
+                name = path.stem.replace("-", " ").replace("_", " ").title()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    generate_reference_skeleton(name, ref.get("description", ""), ref.get("relevant_steps")),
+                    encoding="utf-8",
+                )
+                print(f"  📄 {ref['path']}")
+                created += 1
+
+    if tmpls:
+        print(f"Templates ({len(tmpls)}):")
+        for tmpl in tmpls:
+            path = PROJECT_DIR / tmpl["path"]
+            if path.exists():
+                print(f"  ⏭  {tmpl['path']} (already exists)")
+                skipped += 1
+            else:
+                name = path.stem.replace("-", " ").replace("_", " ").title()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(
+                    generate_template_skeleton(name, tmpl.get("description", ""), path.suffix),
+                    encoding="utf-8",
+                )
+                print(f"  📄 {tmpl['path']}")
+                created += 1
+
+    print(f"\n✅ {created} file(s) created, {skipped} skipped.")
+    if created:
+        print("Fill in the content before running — Claude reads these files during automation.")
+
+
+def generate_reference_skeleton(name, description, relevant_steps=None):
+    steps_note = f"\n> **Read during steps:** {', '.join(relevant_steps)}" if relevant_steps else ""
+    return "\n".join([
+        f"# {name}",
+        "",
+        f"{description}{steps_note}",
+        "",
+        "<!-- Fill in below. Be thorough — Claude reads this cold each session. -->",
+        "",
+        "## Overview",
+        "",
+        "(What is this? What does it do? When is it used in this project?)",
+        "",
+        "## Key APIs / Methods",
+        "",
+        "(Most important classes, functions, or endpoints)",
+        "",
+        "## Usage Examples",
+        "",
+        "```",
+        "(Paste real working examples here)",
+        "```",
+        "",
+        "## Common Gotchas",
+        "",
+        "(Non-obvious behavior, version quirks, known bugs)",
+        "",
+        "## Further Reading",
+        "",
+        "(Links to official docs, source, etc.)",
+        "",
+    ])
+
+
+def generate_template_skeleton(name, description, ext):
+    c = {
+        ".py": "# ", ".sh": "# ", ".rb": "# ", ".r": "# ",
+        ".ts": "// ", ".js": "// ", ".cs": "// ", ".java": "// ",
+        ".go": "// ", ".rs": "// ", ".cpp": "// ", ".c": "// ",
+    }.get(ext, "# ")
+    return (
+        f"{c}{name}\n"
+        f"{c}{description}\n"
+        f"{c}\n"
+        f"{c}Claude copies this file as a starting point. Fill in the structure below.\n"
+        f"{c}The more complete this template, the more consistent Claude's output.\n"
+        "\n"
+        f"{c}TODO: replace this with real template content\n"
+    )
 
 
 def write_if_new(path, content):
@@ -765,6 +872,8 @@ def main():
 
     if cmd == "init":
         cmd_init()
+    elif cmd == "docs":
+        cmd_docs()
     elif cmd == "run":
         once = "--once" in sys.argv
         dry = "--dry-run" in sys.argv
