@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-autopilot"
+version = "1.0.0"
+description = "Hands-free automation for Claude Code projects"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["pyyaml"]
+
+[project.scripts]
+autopilot = "autopilot:main"
+
+[tool.setuptools]
+py-modules = ["autopilot", "slack", "healthcheck", "notify", "daily_report"]
+
+[tool.setuptools.package-data]
+"*" = ["autopilot.example.yaml", "slack-app-manifest.yaml"]
