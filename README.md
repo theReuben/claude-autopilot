@@ -1,6 +1,6 @@
 # Claude Autopilot
 
-Hands-free automation for Claude Code projects. Define your project in YAML, schedule it, and let Claude build it autonomously — with progress tracking, Slack updates, quality gates, and adaptive ETAs.
+Hands-free automation for Claude Code projects. Define your project in YAML, run `autopilot`, and let Claude build it autonomously — with progress tracking, Slack updates, quality gates, and adaptive ETAs.
 
 ## What It Does
 
@@ -26,37 +26,59 @@ You define a plan          Autopilot runs Claude Code     You get updates
 - **Code review notice** — tells Claude its work will be audited (improves output quality)
 - **Feedback loop** — post in Slack, Claude reads it before the next session
 
+## Install
+
+```bash
+git clone https://github.com/your-org/claude-autopilot.git
+pip install -e ./claude-autopilot
+```
+
+This installs the `autopilot` command globally. The tool lives in its own directory — no files are copied into your projects.
+
 ## Quick Start
 
 ```bash
-# 1. Install
-pip install pyyaml
-git clone https://github.com/your-org/claude-autopilot.git
-cd claude-autopilot
+# 1. Create autopilot.yaml in your project repo
+cd my-project
+cp /path/to/claude-autopilot/autopilot.example.yaml autopilot.yaml
+# Edit autopilot.yaml — define your phases, steps, and substeps
 
-# 2. Create your project
-mkdir my-project && cd my-project
-cp ../claude-autopilot/autopilot.example.yaml autopilot.yaml
-# Edit autopilot.yaml with your phases, steps, and substeps
+# 2. Scaffold the project
+autopilot init
 
-# 3. Scaffold
-python3 ../claude-autopilot/autopilot.py init
+# 3. Create skeleton knowledge-base files (API references, templates)
+autopilot docs
 
-# 4. Edit the generated files
-#    - CLAUDE.md: add your project conventions
-#    - MASTER_PLAN.md: add detailed step instructions
-#    - docs/api-reference/: add API docs Claude should reference
+# 4. Fill in the generated files
+#    - MASTER_PLAN.md: add detailed instructions for each step
+#    - CLAUDE.md: add your project-specific conventions
+#    - docs/api-reference/*.md: paste in the API docs Claude will need
+#    - docs/patterns/*: fill in the code templates
 
 # 5. Set up Slack (optional but recommended)
-python3 ../claude-autopilot/autopilot.py setup-slack
+autopilot setup-slack
 
 # 6. Run
-python3 ../claude-autopilot/autopilot.py run
+autopilot run
+```
+
+## Design
+
+Autopilot is installed once as a tool and used across many projects. All configuration for the work lives in the project repo — autopilot brings none of its own opinions about what you're building.
+
+```
+~/.local/                          your-project/
+  claude-autopilot/       ──────►  autopilot.yaml     ← define the work here
+    autopilot.py   (tool)          PROGRESS.md        ← generated, updated by Claude
+    slack.py                       CLAUDE.md          ← generated, edit conventions
+    healthcheck.py                 MASTER_PLAN.md     ← generated, add instructions
+    ...                            FEEDBACK.md        ← generated, human ↔ Claude
+                                   docs/              ← your API refs and templates
 ```
 
 ## Configuration
 
-Everything is defined in `autopilot.yaml`:
+Everything is defined in `autopilot.yaml` in your project root:
 
 ```yaml
 project:
@@ -97,6 +119,15 @@ review:
 
 slack:
   enabled: true
+
+knowledge:
+  references:
+    - path: "docs/api-reference/my-framework.md"
+      description: "Framework API reference"
+      relevant_steps: ["1.1", "1.2"]
+  templates:
+    - path: "docs/patterns/route-template.ts"
+      description: "Template for new route handlers"
 ```
 
 See `autopilot.example.yaml` for all options.
@@ -106,6 +137,7 @@ See `autopilot.example.yaml` for all options.
 | Command | What it does |
 |---|---|
 | `autopilot init` | Scaffold project from autopilot.yaml (PROGRESS.md, CLAUDE.md, etc.) |
+| `autopilot docs` | Create skeleton files for knowledge.references and knowledge.templates |
 | `autopilot run` | Drain the token window — sessions until rate limited |
 | `autopilot run --once` | Run a single session |
 | `autopilot run --dry-run` | Preview the prompt without running |
@@ -124,19 +156,19 @@ Schedule `autopilot run` every 5.5 hours to maximize output:
 **Linux/Mac (cron):**
 ```bash
 crontab -e
-0 0,6,11,17 * * * cd /path/to/project && python3 /path/to/autopilot.py run >> .automation/logs/cron.log 2>&1
+0 0,6,11,17 * * * cd /path/to/project && autopilot run >> .automation/logs/cron.log 2>&1
 ```
 
 **Windows (Task Scheduler):**
 ```powershell
-$Action = New-ScheduledTaskAction -Execute "python" -Argument "C:\path\to\autopilot.py run"
+$Action = New-ScheduledTaskAction -Execute "autopilot" -Argument "run"
 $Trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 5 -Minutes 30)
 Register-ScheduledTask -TaskName "Autopilot" -Action $Action -Trigger $Trigger
 ```
 
 **Daily report:**
 ```bash
-0 8 * * * cd /path/to/project && python3 /path/to/autopilot.py report >> .automation/logs/report.log 2>&1
+0 8 * * * cd /path/to/project && autopilot report >> .automation/logs/report.log 2>&1
 ```
 
 ## Slack Channels
@@ -170,31 +202,31 @@ Each scheduled run:
 
 ```
 your-project/
-├── autopilot.yaml          # Your project config
-├── CLAUDE.md               # Generated — project conventions for Claude
-├── MASTER_PLAN.md          # Generated — step-by-step instructions
-├── PROGRESS.md             # Generated — progress tracker (updated by Claude)
-├── FEEDBACK.md             # Generated — human feedback (synced from Slack)
+├── autopilot.yaml           # Your project config (the only autopilot file you own)
+├── CLAUDE.md                # Generated — project conventions for Claude
+├── MASTER_PLAN.md           # Generated — step-by-step instructions
+├── PROGRESS.md              # Generated — progress tracker (updated by Claude)
+├── FEEDBACK.md              # Generated — human feedback (synced from Slack)
 ├── .claudeignore            # Generated — keeps noise out of context
 ├── docs/
 │   ├── cookbook.md          # Grows during project — bug fixes & workarounds
-│   ├── decisions.md        # Architecture Decision Records
-│   └── api-reference/      # Your API docs (Claude reads these)
+│   ├── decisions.md         # Architecture Decision Records
+│   ├── api-reference/       # Skeleton created by `autopilot docs`, fill in content
+│   └── patterns/            # Skeleton created by `autopilot docs`, fill in templates
 └── .automation/
-    ├── logs/               # Session logs
-    ├── backups/            # Critical file backups
-    └── velocity.json       # ETA tracking data
+    ├── logs/                # Session logs
+    ├── backups/             # Critical file backups
+    └── run-session.sh       # Generated — do not edit
 ```
 
 ## Examples
 
 See `examples/` for complete project configs:
-- `examples/game-agent/` — Blender/Unity MCP server system (the project this tool was extracted from)
+- `examples/game-agent/` — Blender/Unity MCP server system
 
 ## Requirements
 
 - Python 3.9+
-- PyYAML (`pip install pyyaml`)
 - Claude Code (`npm install -g @anthropic-ai/claude-code`)
 - Git
 - Authenticated Claude Code (Pro, Max, or API key)
